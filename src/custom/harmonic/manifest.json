@@ -1,36 +1,16 @@
 {
   "effect_name": "Harmonic",
-  "comment": "Pedal build manifest for Harmonic tremolo.",
+  "comment": "Harmonic tremolo: low and complementary high bands modulated in opposite phase.",
   "audio_func_name": "Fx_DLY_Harmonic",
   "gid": 8,
   "fxid": 947,
   "fxid_version": "1.00",
   "flags_byte": 1,
   "params": [
-    {
-      "name": "Rate",
-      "max": 100,
-      "default": 50,
-      "comment": "params[5]. LFO speed."
-    },
-    {
-      "name": "Depth",
-      "max": 100,
-      "default": 60,
-      "comment": "params[6]. Tremolo depth."
-    },
-    {
-      "name": "Tone",
-      "max": 100,
-      "default": 50,
-      "comment": "params[7]. Harmonic band split / tone control."
-    },
-    {
-      "name": "Mix",
-      "max": 100,
-      "default": 50,
-      "comment": "params[8]. Dry/wet blend."
-    }
+    {"name": "Rate", "max": 100, "default": 45, "comment": "LFO rate, approximately 0.2-8 Hz."},
+    {"name": "Depth", "max": 100, "default": 70, "comment": "Opposed low/high-band tremolo depth."},
+    {"name": "Tone", "max": 100, "default": 50, "comment": "Crossover frequency; higher settings move the split upward."},
+    {"name": "Mix", "max": 100, "default": 50, "comment": "Dry/wet blend."}
   ],
   "audio_nop": false
 }

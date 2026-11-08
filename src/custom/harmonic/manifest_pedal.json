@@ -1,143 +1,17 @@
-/*
- * harmonic.c
- * Harmonic tremolo scaffold for Zoom ZDL-style custom effects.
- *
- * Safe-DSP notes:
- * - no math library
- * - no runtime division
- * - no large statics
- * - no heap
- * - ctx[11]/ctx[12] magic shuttle preserved
- */
-
-#include <stdint.h>
-
-#include "../../airwindows/common/zoom_params.h"
-#include "harmonic_params.h"
-
-#ifndef HARMONIC_AUDIO_FUNC
-#define HARMONIC_AUDIO_FUNC Fx_DLY_Harmonic
-#endif
-
-#define HARMONIC_DO_PRAGMA(x) _Pragma(#x)
-#define HARMONIC_EXPAND_PRAGMA(x) HARMONIC_DO_PRAGMA(x)
-#define HARMONIC_CODE_SECTION(f) HARMONIC_EXPAND_PRAGMA(CODE_SECTION(f, ".audio"))
-
-HARMONIC_CODE_SECTION(HARMONIC_AUDIO_FUNC)
-
-#define ZDL_PTR(type, word) ((type)(uintptr_t)(word))
-
-#define HARMONIC_MAGIC 0x484D544Eu /* 'HMTN' */
-#define HARMONIC_VERSION 1u
-
-#define HARMONIC_TWO_PI 6.28318530718f
-#define HARMONIC_SR 44100.0f
-
-typedef struct HarmonicState {
-    uint32_t magic;
-    uint32_t version;
-    uint32_t initialized;
-    uint32_t pad;
-    float phase;
-    float phase_bias;
-} HarmonicState;
-
-static inline float harmonic_abs(float x)
 {
-    return x < 0.0f ? -x : x;
-}
-
-static inline float harmonic_sin(float x)
-{
-    const float twoPi = 6.28318530718f;
-    const float pi = 3.14159265359f;
-    const float inv = 0.15915494309f;
-
-    x = x - twoPi * (float)((int)(x * inv));
-    if (x < -pi) x += twoPi;
-    if (x > pi) x -= twoPi;
-
-    float y = 1.2732395447f * x - 0.4052847346f * x * harmonic_abs(x);
-    return y + 0.225f * (y * harmonic_abs(y) - y);
-}
-
-void HARMONIC_AUDIO_FUNC(unsigned int *ctx)
-{
-    float *params = ZDL_PTR(float *, ctx[1]);
-    float *fxBuf = ZDL_PTR(float *, ctx[5]);
-
-    unsigned int *magicSrc = ZDL_PTR(unsigned int *, ctx[12]);
-    unsigned int *magicDst = ZDL_PTR(unsigned int *, *(unsigned int *)ZDL_PTR(unsigned int *, ctx[11]));
-    *magicDst = *magicSrc;
-
-    if (params[0] < 0.5f) return;
-
-    volatile unsigned int *desc = ZDL_PTR(volatile unsigned int *, ctx[3]);
-    if (!desc) return;
-
-    uintptr_t base = (uintptr_t)desc[0];
-    uintptr_t end = (uintptr_t)desc[1];
-    if (base == 0u || end <= base) return;
-    if ((base & 3u) != 0u) return;
-    if (end - base < (uintptr_t)sizeof(HarmonicState)) return;
-
-    HarmonicState *st = (HarmonicState *)base;
-    if (st->magic != HARMONIC_MAGIC || st->version != HARMONIC_VERSION || !st->initialized) {
-        st->magic = HARMONIC_MAGIC;
-        st->version = HARMONIC_VERSION;
-        st->phase = 0.0f;
-        st->phase_bias = 0.0f;
-        st->initialized = 1u;
-    }
-
-    float rate = zoom_param_norm01(params[HARMONIC_RATE_SLOT], HARMONIC_RATE_DEFAULT_NORM);
-    float depth = zoom_param_norm01(params[HARMONIC_DEPTH_SLOT], HARMONIC_DEPTH_DEFAULT_NORM);
-    float tone = zoom_param_norm01(params[HARMONIC_TONE_SLOT], HARMONIC_TONE_DEFAULT_NORM);
-    float mix = zoom_param_norm01(params[HARMONIC_MIX_SLOT], HARMONIC_MIX_DEFAULT_NORM);
-
-    float lfoHz = 0.2f + rate * 7.8f;
-    float lfoInc = (HARMONIC_TWO_PI * lfoHz) / HARMONIC_SR;
-    float cross = 0.20f + tone * 0.80f;
-    float wet = mix;
-    float dry = 1.0f - mix;
-
-    float ph = st->phase;
-    float phB = st->phase_bias;
-
-    int i;
-    for (i = 0; i < 8; i++) {
-        float inL = fxBuf[i];
-        float inR = fxBuf[i + 8];
-
-        float lfo = harmonic_sin(ph);
-        float lfo2 = harmonic_sin(phB);
-
-        float lowBlend = 0.5f + 0.5f * lfo;
-        float highBlend = 0.5f - 0.5f * lfo;
-
-        float lowGainL = 1.0f - depth * (0.5f + 0.5f * lowBlend);
-        float highGainL = 1.0f - depth * (0.5f + 0.5f * highBlend);
-        float lowGainR = 1.0f - depth * (0.5f + 0.5f * lfo2);
-        float highGainR = 1.0f - depth * (0.5f - 0.5f * lfo2);
-
-        float lowWeight = 1.0f - cross;
-        float highWeight = cross;
-
-        float lowL = inL * lowWeight * lowGainL;
-        float highL = inL * highWeight * highGainL;
-        float lowR = inR * lowWeight * lowGainR;
-        float highR = inR * highWeight * highGainR;
-
-        fxBuf[i] = dry * inL + wet * (lowL + highL);
-        fxBuf[i + 8] = dry * inR + wet * (lowR + highR);
-
-        ph += lfoInc;
-        phB += lfoInc * 0.67f;
-
-        if (ph > HARMONIC_TWO_PI) ph -= HARMONIC_TWO_PI;
-        if (phB > HARMONIC_TWO_PI) phB -= HARMONIC_TWO_PI;
-    }
-
-    st->phase = ph;
-    st->phase_bias = phB;
+  "effect_name": "Harmonic",
+  "comment": "Pedal Harmonic tremolo. Low and complementary high bands are modulated in opposite phase.",
+  "audio_func_name": "Fx_DLY_Harmonic",
+  "gid": 8,
+  "fxid": 947,
+  "fxid_comment": "Checked against the upstream registry's next-available ID; re-check other collections before release.",
+  "fxid_version": "1.00",
+  "flags_byte": 1,
+  "params": [
+    {"name": "Rate", "max": 100, "default": 45, "comment": "params[5]. LFO rate, approximately 0.2-8 Hz."},
+    {"name": "Depth", "max": 100, "default": 70, "comment": "params[6]. Opposed-band tremolo depth."},
+    {"name": "Tone", "max": 100, "default": 50, "comment": "params[7]. Crossover frequency; higher settings move the split upward."},
+    {"name": "Mix", "max": 100, "default": 50, "comment": "params[8]. Dry/wet blend."}
+  ],
+  "audio_nop": false
 }
