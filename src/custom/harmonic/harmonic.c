@@ -11,6 +11,13 @@
  * ctx[11]/ctx[12] magic shuttle.
  */
 #include <stdint.h>
+
+/* harmonic_wave.h uses this macro to request TI's always-inline pragma.
+ * Define it before including that header so the compiler sees the expansion. */
+#define HARMONIC_DO_PRAGMA(x) _Pragma(#x)
+#define HARMONIC_EXPAND_PRAGMA(x) HARMONIC_DO_PRAGMA(x)
+#define HARMONIC_ALWAYS_INLINE(f) HARMONIC_EXPAND_PRAGMA(FUNC_ALWAYS_INLINE(f))
+
 #include "../../airwindows/common/zoom_params.h"
 #include "harmonic_params.h"
 #include "harmonic_wave.h"
@@ -19,8 +26,6 @@
 #define HARMONIC_AUDIO_FUNC Fx_DLY_Harmonic
 #endif
 
-#define HARMONIC_DO_PRAGMA(x) _Pragma(#x)
-#define HARMONIC_EXPAND_PRAGMA(x) HARMONIC_DO_PRAGMA(x)
 #define HARMONIC_CODE_SECTION(f) HARMONIC_EXPAND_PRAGMA(CODE_SECTION(f, ".audio"))
 HARMONIC_CODE_SECTION(HARMONIC_AUDIO_FUNC)
 
