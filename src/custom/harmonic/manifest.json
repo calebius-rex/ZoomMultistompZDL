@@ -1,0 +1,36 @@
+{
+  "effect_name": "Harmonic",
+  "comment": "Pedal build manifest for Harmonic tremolo.",
+  "audio_func_name": "Fx_DLY_Harmonic",
+  "gid": 8,
+  "fxid": 947,
+  "fxid_version": "1.00",
+  "flags_byte": 1,
+  "params": [
+    {
+      "name": "Rate",
+      "max": 100,
+      "default": 50,
+      "comment": "params[5]. LFO speed."
+    },
+    {
+      "name": "Depth",
+      "max": 100,
+      "default": 60,
+      "comment": "params[6]. Tremolo depth."
+    },
+    {
+      "name": "Tone",
+      "max": 100,
+      "default": 50,
+      "comment": "params[7]. Harmonic band split / tone control."
+    },
+    {
+      "name": "Mix",
+      "max": 100,
+      "default": 50,
+      "comment": "params[8]. Dry/wet blend."
+    }
+  ],
+  "audio_nop": false
+}
