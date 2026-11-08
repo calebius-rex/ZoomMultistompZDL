@@ -1,15 +1,10 @@
 /*
  * Harmonic: Monument V2-inspired harmonic tremolo for Zoom MultiStomp.
  *
- * Four control mapping: Rate, Depth, Shape, Volume. This reproduces the broad
- * harmonic-tremolo behavior (complementary low/high bands modulated oppositely)
- * with an original lightweight DSP approximation; it is not a copy of Walrus
- * Audio's proprietary circuit or firmware.
- *
- * Shape continuously blends sine -> triangle -> square -> ramp. The Monument's
- * waveform-range and division toggles, tap-tempo switch, and standard-tremolo
- * mode are not represented: this pedal effect uses the four available knobs for
- * the four main controls and runs harmonic mode only.
+ * Controls: Rate, Depth, Shape, Volume, Division, Mode. Division scales the
+ * free-running Rate control (quarter, triplet, eighth); this is not tap tempo.
+ * Mode selects standard full-band tremolo or complementary-band harmonic
+ * tremolo. This is an original DSP approximation, not a Walrus Audio port.
  *
  * Safe-DSP: scalar persistent state in ctx[3], no math library, no arrays or
  * writable globals, no runtime divide, no switch/jump table. Preserve the
@@ -18,6 +13,7 @@
 #include <stdint.h>
 #include "../../airwindows/common/zoom_params.h"
 #include "harmonic_params.h"
+#include "harmonic_wave.h"
 
 #ifndef HARMONIC_AUDIO_FUNC
 #define HARMONIC_AUDIO_FUNC Fx_DLY_Harmonic
@@ -29,13 +25,10 @@
 HARMONIC_CODE_SECTION(HARMONIC_AUDIO_FUNC)
 
 #define ZDL_PTR(type, word) ((type)(uintptr_t)(word))
-#define HARMONIC_MAGIC 0x484D5432u
-#define HARMONIC_VERSION 2u
+#define HARMONIC_MAGIC 0x484D5433u
+#define HARMONIC_VERSION 3u
 #define HARMONIC_TWO_PI 6.28318530718f
 #define HARMONIC_TWO_PI_SR 0.0001424758573f
-#define HARMONIC_PI 3.14159265359f
-
-#define HARMONIC_ALWAYS_INLINE(f) HARMONIC_EXPAND_PRAGMA(FUNC_ALWAYS_INLINE(f))
 
 typedef struct HarmonicState {
     uint32_t magic;
@@ -47,46 +40,13 @@ typedef struct HarmonicState {
     float lowR;
 } HarmonicState;
 
-HARMONIC_ALWAYS_INLINE(harmonic_abs)
-static inline float harmonic_abs(float x)
+HARMONIC_ALWAYS_INLINE(harmonic_division_multiplier)
+static inline float harmonic_division_multiplier(float division)
 {
-    return x < 0.0f ? -x : x;
-}
-
-/* Parabolic sine approximation; phase is wrapped into [0, 2*pi). */
-HARMONIC_ALWAYS_INLINE(harmonic_sin)
-static inline float harmonic_sin(float phase)
-{
-    float x = phase;
-    if (x > HARMONIC_PI) x -= HARMONIC_TWO_PI;
-    float y = 1.2732395447f * x - 0.4052847346f * x * harmonic_abs(x);
-    return y + 0.225f * (y * harmonic_abs(y) - y);
-}
-
-/* Blend adjacent LFO shapes without tables or indirect branches. */
-HARMONIC_ALWAYS_INLINE(harmonic_wave)
-static inline float harmonic_wave(float phase, float shape)
-{
-    float sine = harmonic_sin(phase);
-    float triangle;
-    float square;
-    float ramp = phase * (1.0f / HARMONIC_PI) - 1.0f;
-    float t;
-
-    if (phase < HARMONIC_PI) triangle = -1.0f + phase * (2.0f / HARMONIC_PI);
-    else triangle = 3.0f - phase * (2.0f / HARMONIC_PI);
-    square = phase < HARMONIC_PI ? -1.0f : 1.0f;
-
-    if (shape < 0.33333334f) {
-        t = shape * 3.0f;
-        return sine + t * (triangle - sine);
-    }
-    if (shape < 0.66666669f) {
-        t = (shape - 0.33333334f) * 3.0f;
-        return triangle + t * (square - triangle);
-    }
-    t = (shape - 0.66666669f) * 3.0f;
-    return square + t * (ramp - square);
+    /* Quarter = 1x, quarter-note triplet = 1.5x, eighth = 2x. */
+    if (division < 0.33333334f) return 1.0f;
+    if (division < 0.66666669f) return 1.5f;
+    return 2.0f;
 }
 
 void HARMONIC_AUDIO_FUNC(unsigned int *ctx)
@@ -121,11 +81,15 @@ void HARMONIC_AUDIO_FUNC(unsigned int *ctx)
     float depth = zoom_param_norm01(params[HARMONIC_DEPTH_SLOT], HARMONIC_DEPTH_DEFAULT_NORM);
     float shape = zoom_param_norm01(params[HARMONIC_SHAPE_SLOT], HARMONIC_SHAPE_DEFAULT_NORM);
     float volume = zoom_param_norm01(params[HARMONIC_VOLUME_SLOT], HARMONIC_VOLUME_DEFAULT_NORM);
+    float division = zoom_param_norm01(params[HARMONIC_DIVISION_SLOT], HARMONIC_DIVISION_DEFAULT_NORM);
+    float mode = zoom_param_norm01(params[HARMONIC_MODE_SLOT], HARMONIC_MODE_DEFAULT_NORM);
 
-    /* 0.5..12 Hz; fixed crossover is intentionally not an extra control. */
-    float phaseInc = (0.5f + 11.5f * rate) * HARMONIC_TWO_PI_SR;
+    /* Rate sets quarter-note speed (0.5..12 Hz); Division multiplies it. */
+    float lfoHz = (0.5f + 11.5f * rate) * harmonic_division_multiplier(division);
+    if (lfoHz > 24.0f) lfoHz = 24.0f;
+    float phaseInc = lfoHz * HARMONIC_TWO_PI_SR;
     float lpCoeff = 0.08f;
-    /* Unity at knob centre, with useful cut/boost range either side. */
+    /* Unity at centre, attenuation below, boost above. */
     float outGain = 0.5f + volume;
     float phase = st->phase;
     float lowL = st->lowL;
@@ -143,8 +107,15 @@ void HARMONIC_AUDIO_FUNC(unsigned int *ctx)
         float lfo = harmonic_wave(phase, shape);
         float lowGain = 1.0f - depth * (0.5f + 0.5f * lfo);
         float highGain = 1.0f - depth * (0.5f - 0.5f * lfo);
-        fxBuf[i] = outGain * (lowL * lowGain + highL * highGain);
-        fxBuf[i + 8] = outGain * (lowR * lowGain + highR * highGain);
+        float harmonicL = lowL * lowGain + highL * highGain;
+        float harmonicR = lowR * lowGain + highR * highGain;
+        float tremoloGain = 1.0f - depth * (0.5f + 0.5f * lfo);
+
+        /* Mode=0 is Standard (all frequencies together); Mode=1 is Harmonic. */
+        float outL = mode < 0.5f ? inL * tremoloGain : harmonicL;
+        float outR = mode < 0.5f ? inR * tremoloGain : harmonicR;
+        fxBuf[i] = outGain * outL;
+        fxBuf[i + 8] = outGain * outR;
 
         phase += phaseInc;
         if (phase >= HARMONIC_TWO_PI) phase -= HARMONIC_TWO_PI;

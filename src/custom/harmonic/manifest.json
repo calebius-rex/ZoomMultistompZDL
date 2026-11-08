@@ -4,13 +4,16 @@
   "audio_func_name": "Fx_DLY_Harmonic",
   "gid": 8,
   "fxid": 947,
-  "fxid_version": "2.00",
+  "fxid_comment": "Check for collisions in the target pedal's installed effects before installation.",
+  "fxid_version": "3.00",
   "flags_byte": 1,
   "params": [
-    {"name": "Rate", "max": 100, "default": 40, "comment": "Tremolo speed, approximately 0.5-12 Hz."},
-    {"name": "Depth", "max": 100, "default": 65, "comment": "Harmonic tremolo depth."},
-    {"name": "Shape", "max": 100, "default": 35, "comment": "Continuous sine -> triangle -> square -> ramp LFO morph."},
-    {"name": "Volume", "max": 100, "default": 50, "comment": "Output level; centre is unity."}
+    {"name": "Rate", "max": 100, "default": 40, "comment": "Quarter-note base speed, approximately 0.5-12 Hz."},
+    {"name": "Depth", "max": 100, "default": 65, "comment": "Tremolo intensity."},
+    {"name": "Shape", "max": 100, "default": 35, "comment": "Sine -> triangle -> square -> ramp LFO morph."},
+    {"name": "Volume", "max": 100, "default": 50, "comment": "Output level; centre is unity."},
+    {"name": "Division", "max": 100, "default": 0, "comment": "Three-position rate ratio selector: quarter, quarter-triplet, eighth. Rate is the base; this is not tap tempo.", "choices": [{"label":"Qtr","from":0,"to":33,"value":16},{"label":"Trip","from":34,"to":66,"value":50},{"label":"8th","from":67,"to":100,"value":83}]},
+    {"name": "Mode", "max": 100, "default": 100, "comment": "Standard full-band or Harmonic complementary-band tremolo.", "choices": [{"label":"Std","from":0,"to":49,"value":24},{"label":"Harm","from":50,"to":100,"value":75}]}
   ],
   "audio_nop": false
 }
