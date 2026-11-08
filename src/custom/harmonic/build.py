@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -15,7 +16,7 @@ sys.path.insert(0, str(ROOT / "src" / "airwindows" / "common"))
 
 from linker import LinkerConfig, link, params_from_manifest  # noqa: E402
 from manifest_params import write_param_header  # noqa: E402
-from custom_covers import make_cover  # noqa: E402
+import custom_covers  # noqa: E402
 
 TI_ROOT = Path("/Applications/ti/ti-cgt-c6000_8.5.0.LTS")
 CL6X = TI_ROOT / "bin" / "cl6x"
@@ -23,6 +24,24 @@ CFLAGS = [
     "--c99", "--opt_level=2", "-mv6740", "--abi=eabi",
     "--mem_model:data=far", f"--include_path={TI_ROOT}/include",
 ]
+
+
+def _harmonic_emblem(canvas) -> None:
+    """Draw two opposed harmonic-tremolo traces in the standard cover emblem."""
+    previous_low = None
+    previous_high = None
+    for x in range(43, 86):
+        phase = (x - 43) * (2.0 * math.pi / 28.0)
+        y_low = int(round(23 - 7 * math.sin(phase)))
+        y_high = int(round(23 + 7 * math.sin(phase)))
+        if previous_low is not None:
+            custom_covers._line(canvas, previous_low[0], previous_low[1], x, y_low)
+            custom_covers._line(canvas, previous_high[0], previous_high[1], x, y_high)
+        previous_low = (x, y_low)
+        previous_high = (x, y_high)
+    # Crossover marker: the two bands trade level at the centre.
+    canvas.vline(64, 15, 31)
+    canvas.hline(61, 67, 23)
 
 
 def main() -> None:
@@ -48,10 +67,13 @@ def main() -> None:
         if p.exists():
             p.unlink()
 
+    # Use the normal generated cover frame, adding an effect-specific emblem;
+    # the common helper handles Zoom's monochrome RLE and visible knob labels.
+    custom_covers.EMBLEMS["Harmonic"] = _harmonic_emblem
     cfg = LinkerConfig(
         materialize_init=True,
         effect_name=effect_name,
-        screen_image=make_cover(effect_name, [p["name"] for p in manifest["params"]]),
+        screen_image=custom_covers.make_cover(effect_name, [p["name"] for p in manifest["params"]]),
         audio_func_name=audio_func,
         gid=manifest["gid"],
         fxid=manifest["fxid"],
@@ -69,6 +91,7 @@ def main() -> None:
     )
     link(cfg)
     print(f"\n[harmonic] done -> {out_zdl}")
+    print("[harmonic] cover includes opposed-band waveform emblem and Rate/Depth/Tone labels")
 
 
 if __name__ == "__main__":
