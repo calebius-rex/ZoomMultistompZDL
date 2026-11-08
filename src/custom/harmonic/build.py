@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""Build Harmonic.ZDL from harmonic.c + manifest_pedal.json."""
+"""Build Harmonic.ZDL from harmonic.c + manifest_pedal.json.
+
+Set TI_CGT_ROOT to the TI C6000 compiler installation directory when it is not
+installed at the default location. On Windows, for example:
+    $env:TI_CGT_ROOT = 'C:\\ti\\ti-cgt-c6000_8.5.0.LTS'
+"""
 
 from __future__ import annotations
 
 import json
 import math
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -18,11 +24,20 @@ from linker import LinkerConfig, link, params_from_manifest  # noqa: E402
 from manifest_params import write_param_header  # noqa: E402
 import custom_covers  # noqa: E402
 
-TI_ROOT = Path("/Applications/ti/ti-cgt-c6000_8.5.0.LTS")
-CL6X = TI_ROOT / "bin" / "cl6x"
+DEFAULT_TI_ROOTS = [
+    Path(os.environ.get("TI_CGT_ROOT", "")) if os.environ.get("TI_CGT_ROOT") else None,
+    Path("C:/ti/ti-cgt-c6000_8.5.0.LTS"),
+    Path("C:/ti/ti-cgt-c6000_8.5.0"),
+    Path("/Applications/ti/ti-cgt-c6000_8.5.0.LTS"),
+]
+TI_ROOT = next((p for p in DEFAULT_TI_ROOTS if p and
+                any((p / "bin" / exe).is_file() for exe in ("cl6x.exe", "cl6x"))),
+               DEFAULT_TI_ROOTS[0] or Path("C:/ti/ti-cgt-c6000_8.5.0.LTS"))
+CL6X = next((TI_ROOT / "bin" / exe for exe in ("cl6x.exe", "cl6x")
+             if (TI_ROOT / "bin" / exe).is_file()), TI_ROOT / "bin" / "cl6x")
 CFLAGS = [
     "--c99", "--opt_level=2", "-mv6740", "--abi=eabi",
-    "--mem_model:data=far", f"--include_path={TI_ROOT}/include",
+    "--mem_model:data=far", f"--include_path={TI_ROOT / 'include'}",
 ]
 
 
@@ -39,12 +54,18 @@ def _harmonic_emblem(canvas) -> None:
             custom_covers._line(canvas, previous_high[0], previous_high[1], x, y_high)
         previous_low = (x, y_low)
         previous_high = (x, y_high)
-    # Crossover marker: the two bands trade level at the centre.
     canvas.vline(64, 15, 31)
     canvas.hline(61, 67, 23)
 
 
 def main() -> None:
+    if not CL6X.is_file():
+        raise FileNotFoundError(
+            f"TI C6000 compiler not found: {CL6X}\n"
+            "Install TI C6000 CGT, then set TI_CGT_ROOT to its install folder. "
+            "For example in PowerShell: $env:TI_CGT_ROOT = 'C:\\ti\\ti-cgt-c6000_8.5.0.LTS'"
+        )
+
     manifest = json.loads((HERE / "manifest_pedal.json").read_text())
     write_param_header(manifest, HERE / "harmonic_params.h", "HARMONIC")
 
@@ -67,8 +88,6 @@ def main() -> None:
         if p.exists():
             p.unlink()
 
-    # Use the normal generated cover frame, adding an effect-specific emblem;
-    # the common helper handles Zoom's monochrome RLE and visible knob labels.
     custom_covers.EMBLEMS["Harmonic"] = _harmonic_emblem
     cfg = LinkerConfig(
         materialize_init=True,
@@ -91,7 +110,7 @@ def main() -> None:
     )
     link(cfg)
     print(f"\n[harmonic] done -> {out_zdl}")
-    print("[harmonic] cover includes opposed-band waveform emblem and Rate/Depth/Tone labels")
+    print("[harmonic] cover includes opposed-band waveform emblem and Rate/Depth/Shape labels")
 
 
 if __name__ == "__main__":
