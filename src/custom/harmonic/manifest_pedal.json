@@ -1,17 +1,1 @@
-{
-  "effect_name": "Harmonic",
-  "comment": "Pedal Harmonic tremolo. Low and complementary high bands are modulated in opposite phase.",
-  "audio_func_name": "Fx_DLY_Harmonic",
-  "gid": 8,
-  "fxid": 947,
-  "fxid_comment": "Checked against the upstream registry's next-available ID; re-check other collections before release.",
-  "fxid_version": "1.00",
-  "flags_byte": 1,
-  "params": [
-    {"name": "Rate", "max": 100, "default": 45, "comment": "params[5]. LFO rate, approximately 0.2-8 Hz."},
-    {"name": "Depth", "max": 100, "default": 70, "comment": "params[6]. Opposed-band tremolo depth."},
-    {"name": "Tone", "max": 100, "default": 50, "comment": "params[7]. Crossover frequency; higher settings move the split upward."},
-    {"name": "Mix", "max": 100, "default": 50, "comment": "params[8]. Dry/wet blend."}
-  ],
-  "audio_nop": false
-}
+{"effect_name":"Harmonic","comment":"Monument V2-inspired harmonic tremolo approximation; original DSP, not a Walrus Audio port.","audio_func_name":"Fx_DLY_Harmonic","gid":8,"fxid":947,"fxid_version":"2.00","flags_byte":1,"params":[{"name":"Rate","max":100,"default":40},{"name":"Depth","max":100,"default":65},{"name":"Shape","max":100,"default":35},{"name":"Volume","max":100,"default":50}],"audio_nop":false}
